@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tattoo Booking Form</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="
+          default-src 'self';
+          script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;
+          connect-src 'self' https://shlvjhipxnslrncczopn.supabase.co wss://shlvjhipxnslrncczopn.supabase.co https://hook.us2.make.com;
+          style-src 'self' 'unsafe-inline';
+          object-src 'none';
+        ">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Helvetica Neue',Arial,sans-serif;background:#111;color:#fff;max-width:600px;margin:0 auto;padding:20px}
+    h1,h2{margin-bottom:10px}
+    label{display:block;font-weight:700;margin:8px 0 4px}
+    input,select,textarea,button{width:100%;background:#222;color:#fff;border:1px solid #444;border-radius:4px;padding:8px;margin-bottom:10px}
+    button{background:#333;cursor:pointer;border:none}
+    button:hover{background:#555}
+    .form-section{background:#222;border:1px solid #444;border-radius:6px;padding:15px;margin-bottom:20px}
+    .size-container{display:flex;gap:10px}.size-container>div{flex:1}
+    .conditional-section{margin-top:10px;background:#333;border:1px solid #444;border-radius:4px;padding:10px}
+    .list-container{margin-top:6px}
+    .list-item{background:#444;padding:8px;border-radius:4px;margin-bottom:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+    .list-item:hover{background:#555}
+    .list-item.selected{background:#28a745!important;border:1px solid #4fdf6f}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+<h1>Tattoo Booking Form</h1>
+
+<form id="tattoo-form" enctype="multipart/form-data">
+  <!-- PERSONAL -->
+  <div class="form-section">
+    <h2>Personal Info</h2>
+    <label>Name *</label><input id="name" name="name" required>
+    <label>Phone (include prefix if non-US, e.g. +34) *</label><input id="phone" name="phone" type="tel" required>
+    <label>Email *</label><input id="email" name="email" type="email" required>
+  </div>
+
+  <!-- TATTOO -->
+  <div class="form-section">
+    <h2>Tattoo Info</h2>
+    <label>Placement *</label><input id="placement" name="placement" required placeholder="forearm, shoulder…">
+
+    <div class="size-container">
+      <div><label>Height (in)</label><input id="heightInches" name="heightInches" type="number" step="0.5" required></div>
+      <div><label>Width (in)</label><input id="widthInches"  name="widthInches" type="number" step="0.5" required></div>
+    </div>
+
+    <label>Colour / Style *</label>
+    <select id="styleSelect" name="colour_style" required>
+      <option value="" disabled selected>-- Select Colour / Style --</option>
+      <option value="Single colour (e.g. black, red)">Single colour (e.g. black, red)</option>
+      <option value="Color (2 + solid colours)">Color (2 + solid colours)</option>
+      <option value="Black & grey (with shading)">Black & grey (with shading)</option>
+      <option value="Blackwork (solid black)">Blackwork (solid black)</option>
+      <option value="Black + single accent colour">Black + single accent colour</option>
+      <option value="Grayscale + colour highlights">Grayscale + colour highlights</option>
+      <option value="Full-colour realism">Full-colour realism</option>
+      <option value="Watercolor">Watercolor</option>
+      <option value="Blended colours">Blended colours</option>
+    </select>
+
+    <label>Description *</label><textarea id="description" name="description" rows="4" required></textarea>
+
+    <label>Reference Image 1</label><input type="file" id="reference-image1" name="image1_urls" accept="image/*">
+    <label>Reference Image 2</label><input type="file" id="reference-image2" name="image2_urls" accept="image/*">
+    <label>Reference Image 3</label><input type="file" id="reference-image3" name="image3_urls" accept="image/*">
+  </div>
+
+  <!-- LOCATION & PRIORITY -->
+  <div class="form-section">
+    <label>Preferred Location *</label>
+    <select id="locationSelect" name="preferred_location" required><option value="">-- Select Location --</option></select>
+
+    <label style="margin-top:10px">Which is more important?</label>
+    <select id="prioritySelect" required>
+      <option value="">-- Choose --</option>
+      <option value="datePriority">I need a specific date</option>
+      <option value="artistPriority">I have a specific artist in mind</option>
+    </select>
+
+    <!-- DATE priority -->
+    <div id="datePrioritySection" class="conditional-section hidden">
+      <label>Which date do you need?</label><input type="date" id="priorityDate">
+      <div class="list-container" id="availableArtistsForDate"></div>
+      <div class="list-container hidden" id="dateTimesContainer"></div>
+    </div>
+
+    <!-- ARTIST priority -->
+    <div id="artistPrioritySection" class="conditional-section hidden">
+      <label>Choose Artist</label><select id="artistPick"><option value="">-- Pick Artist --</option></select>
+      <label>Start Date</label><input type="date" id="rangeStart">
+      <label>End Date</label><input type="date" id="rangeEnd">
+      <div class="list-container" id="availableDaysForArtist"></div>
+      <div class="list-container hidden" id="artistTimesContainer"></div>
+    </div>
+  </div>
+
+  <!-- CONSENT -->
+  <div class="form-section">
+    <label><input type="checkbox" id="opt-in-marketing" name="opt_in_marketing" required> I agree to receive emails/SMS about my appointment and marketing.</label>
+    <p style="font-size:.9em">By checking, you consent to be contacted in compliance with ADA & privacy regulations.</p>
+  </div>
+
+  <!-- hidden -->
+  <input type="hidden" id="finalArtistId" name="finalArtistId">
+  <input type="hidden" id="finalDate"     name="finalDate">
+  <input type="hidden" id="finalStartTime" name="finalStartTime">
+  <input type="hidden" id="finalEndTime"   name="finalEndTime">
+
+  <button type="submit">Submit</button>
+</form>
+
+<!-- SUPABASE -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@1.35.7/dist/umd/supabase.min.js"></script>
+<script>
+/* ---------- Supabase init ---------- */
+const supabase=window.supabase.createClient(
+  'https://shlvjhipxnslrncczopn.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNobHZqaGlweG5zbHJuY2N6b3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY2NDgzNjIsImV4cCI6MjA2MjIyNDM2Mn0.oPrYFyW0IsDnNsDpQ9LI0cOm6Y7OIJbjebp2Zjvv_qQ'
+);
+
+/* ---------- DOM refs ---------- */
+const locSel=document.getElementById('locationSelect');
+const prioSel=document.getElementById('prioritySelect');
+const dateSect=document.getElementById('datePrioritySection');
+const artistSect=document.getElementById('artistPrioritySection');
+const dateInput=document.getElementById('priorityDate');
+const listArtistsDate=document.getElementById('availableArtistsForDate');
+const listSlotsDate=document.getElementById('dateTimesContainer');
+const artistPick=document.getElementById('artistPick');
+const rangeStart=document.getElementById('rangeStart');
+const rangeEnd=document.getElementById('rangeEnd');
+const listDays=document.getElementById('availableDaysForArtist');
+const listSlotsArtist=document.getElementById('artistTimesContainer');
+
+const hIn=document.getElementById('heightInches');
+const wIn=document.getElementById('widthInches');
+const styleSel=document.getElementById('styleSelect');
+
+const hidA=document.getElementById('finalArtistId');
+const hidD=document.getElementById('finalDate');
+const hidS=document.getElementById('finalStartTime');
+const hidE=document.getElementById('finalEndTime');
+
+/* ---------- Load locations ---------- */
+document.addEventListener('DOMContentLoaded',async()=>{
+  const {data}=await supabase.from('locations').select('id,location_name');
+  data?.forEach(l=>{
+    const o=document.createElement('option');o.value=l.id;o.textContent=l.location_name;
+    locSel.appendChild(o);
+  });
+});
+
+/* ---------- Helpers ---------- */
+const todayISO = () => new Date().toISOString().split('T')[0];  /* today's yyyy-mm-dd */
+
+const toMin=t=>{if(!t)return 0;const [h,m]=t.split(':').map(Number);return h*60+m;};
+function anyToMin(t){
+  if(!t)return 0;
+  t=t.trim();
+  if(/[ap]m$/i.test(t)){
+    let [hm,ampm]=t.split(' ');
+    let [h,m]=hm.split(':').map(Number);
+    ampm=ampm.toLowerCase();
+    if(ampm==='pm'&&h!==12)h+=12;
+    if(ampm==='am'&&h===12)h=0;
+    return h*60+m;
+  }
+  return toMin(t);
+}
+const minsTo12=m=>{
+  let h=Math.floor(m/60),mm=m%60,am='AM';
+  if(h===0)h=12;else if(h===12)am='PM';else if(h>12){h-=12;am='PM';}
+  return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')} ${am}`;
+};
+function buildFree(sDayStart,sDayEnd,apps){
+  const BUFFER=15;
+  const busy=apps.map(a=>{
+    const st=Math.max(sDayStart,toMin(a.start_time)-BUFFER);
+    const en=Math.min(sDayEnd,toMin(a.end_time)+BUFFER);
+    return {s:st,e:en};
+  }).sort((a,b)=>a.s-b.s);
+  const free=[];let cur=sDayStart;
+  busy.forEach(b=>{
+    if(b.s>cur)free.push({s:cur,e:b.s});
+    if(b.e>cur)cur=b.e;
+  });
+  if(cur<sDayEnd)free.push({s:cur,e:sDayEnd});
+  return free;
+}
+[hIn,wIn].forEach(inp=>{
+  inp.addEventListener('change',()=>{
+    const v=parseFloat(inp.value||'0');
+    inp.value=(Math.ceil(v*2)/2).toFixed(1).replace(/\.0$/,'');
+    clearSel();updateUI();
+  });
+});
+function baseMinutes(){
+  const area=(+hIn.value||0)*(+wIn.value||0);
+  if(area<1)  return 10;
+  if(area<=2) return 15;
+  if(area<=6) return 20;
+  if(area<=9) return 60;
+  if(area<=12)return 90;
+  if(area<=18)return 120;
+  if(area<=25)return 180;
+  if(area<=38)return 300;
+  return 9999;
+}
+const multiMap={
+  'Single colour (e.g. black, red)':1,
+  'Color (2 + solid colours)':1.1,
+  'Black & grey (with shading)':1.25,
+  'Blackwork (solid black)':1.1,
+  'Black + single accent colour':1.1,
+  'Grayscale + colour highlights':1.25,
+  'Full-colour realism':1.4,
+  'Watercolor':1.25,
+  'Blended colours':1.4
+};
+function needMin(){
+  const b=baseMinutes();
+  if(b>=9999)return 9999;
+  const mult=multiMap[styleSel.value]??1;
+  return Math.ceil(b*mult/5)*5;
+}
+const cols=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+
+/* ---------- Watchers ---------- */
+[locSel,prioSel,dateInput,rangeStart,rangeEnd,hIn,wIn,styleSel]
+  .forEach(el=>el.addEventListener('change',()=>{clearSel();updateUI();}));
+artistPick.addEventListener('change',()=>{
+  clearSel();listDays.innerHTML='';listSlotsArtist.innerHTML='';
+  listSlotsArtist.classList.add('hidden');loadDays();
+});
+
+/* ---------- Clear selections ---------- */
+function clearSel(){
+  document.querySelectorAll('.list-item.selected').forEach(li=>li.classList.remove('selected'));
+  hidA.value=hidD.value=hidS.value=hidE.value='';
+}
+
+/* ---------- UI refresh ---------- */
+function updateUI(){
+  listArtistsDate.innerHTML='';listSlotsDate.innerHTML='';
+  listSlotsDate.classList.add('hidden');
+  listDays.innerHTML='';listSlotsArtist.innerHTML='';
+  listSlotsArtist.classList.add('hidden');
+
+  if(prioSel.value==='datePriority'){
+    dateSect.classList.remove('hidden');artistSect.classList.add('hidden');
+    loadArtistsForDate();
+  }else if(prioSel.value==='artistPriority'){
+    artistSect.classList.remove('hidden');dateSect.classList.add('hidden');
+    loadArtistDropdown();
+  }else{
+    dateSect.classList.add('hidden');artistSect.classList.add('hidden');
+  }
+}
+
+/* ---------- Helper for walk-in message ---------- */
+async function showWalkInMessage(){
+  listArtistsDate.innerHTML='';
+  listSlotsDate.innerHTML='';
+  listSlotsDate.classList.add('hidden');
+  
+  if(!locSel.value){
+    listArtistsDate.innerHTML='<p>Please select a location first.</p>';
+    return;
+  }
+
+  const {data,error}=await supabase.from('locations')
+      .select('address,business_hours,phone').eq('id',locSel.value).single();
+
+  if(error||!data){
+    listArtistsDate.innerHTML='<p>We take walk-ins today on a first-come, first-served basis. Feel free to stop by the shop!</p>';
+    return;
+  }
+
+  listArtistsDate.innerHTML=
+    `<p>For same-day tattoos, we accept walk-ins on a <strong>first-come, first-served</strong> basis. Feel free to stop by the shop or call us if you have any questions!</p>
+     <br>
+     <p><strong>Address:</strong> ${data.address||'N/A'}</p>
+     <br>
+     <p><strong>Business Hours:</strong> ${data.business_hours||'N/A'}</p>
+     <br>
+     <p><strong>Phone:</strong> ${data.phone||'N/A'}</p>`;
+}
+
+
+
+
+/* ---------- DATE-priority flow ---------- */
+async function loadArtistsForDate(){
+  if(!locSel.value||!dateInput.value)return;
+
+  /* Walk-in shortcut for today */
+  if(dateInput.value===todayISO()){
+    await showWalkInMessage();
+    return;
+  }
+
+  const {data:arts}=await supabase.from('artists').select('*').eq('location_id',locSel.value);
+  const artIds=arts.map(a=>a.id);
+  const {data:vac}=await supabase.from('artist_vacations')
+        .select('artist_id')
+        .in('artist_id',artIds)
+        .lte('vacation_start',dateInput.value)
+        .gte('vacation_end',dateInput.value);
+  const vacationSet=new Set(vac?.map(v=>v.artist_id)||[]);
+  const {data:apps}=await supabase.from('artist_appointments').select('*').eq('date',dateInput.value);
+  const idx=new Date(`${dateInput.value}T00:00:00Z`).getUTCDay();
+  const need=needMin(), cStart=`${cols[idx]}_start`,cEnd=`${cols[idx]}_end`;
+  const avail=arts.filter(a=>{
+    if(vacationSet.has(a.id))return false;
+    const st=a[cStart],en=a[cEnd];if(!st||!en)return false;
+    if(need>=9999)return !apps.some(ap=>ap.artist_id===a.id);
+    const free=buildFree(toMin(st),toMin(en),apps.filter(ap=>ap.artist_id===a.id));
+    return free.some(f=>f.e-f.s>=need);
+  });
+  if(!avail.length){
+    listArtistsDate.innerHTML='<p>No artists available for that date.</p>';
+    return;
+  }
+  avail.forEach(a=>{
+    const div=document.createElement('div');
+    div.className='list-item';
+    div.textContent=a.artist_name;
+    div.onclick=()=>{clearSel();div.classList.add('selected');showSlotsDate(a);};
+    listArtistsDate.appendChild(div);
+  });
+}
+async function showSlotsDate(artist){
+  listSlotsDate.innerHTML='';listSlotsDate.classList.remove('hidden');
+  const need=needMin();
+  const {data:apps}=await supabase.from('artist_appointments').select('*')
+                                  .eq('artist_id',artist.id).eq('date',dateInput.value);
+  const idx=new Date(`${dateInput.value}T00:00:00Z`).getUTCDay();
+  const st=artist[`${cols[idx]}_start`],en=artist[`${cols[idx]}_end`];
+  if(!st||!en){
+    listSlotsDate.innerHTML='<p>Artist is off that day.</p>';
+    return;
+  }
+  if(need>=9999){
+    if(apps.length){
+      listSlotsDate.innerHTML='<p>No full-day slot available.</p>';
+      return;
+    }
+    slotBtn(`All Day – ${artist.artist_name}`,st,en,artist.id,dateInput.value,listSlotsDate);
+    return;
+  }
+  const free=buildFree(toMin(st),toMin(en),apps);let made=false;
+  free.forEach(f=>{
+    for(let t=f.s;t<=f.e-need;t+=5){
+      slotBtn(`${minsTo12(t)} – ${minsTo12(t+need)}`,minsTo12(t),minsTo12(t+need),artist.id,dateInput.value,listSlotsDate);
+      made=true;
+    }
+  });
+  if(!made)listSlotsDate.innerHTML='<p>No timeslots fit the requested duration.</p>';
+}
+
+/* ---------- ARTIST-priority flow (unchanged) ---------- */
+async function loadArtistDropdown(){
+  const prev=artistPick.value;
+  artistPick.innerHTML='<option value="">-- Pick Artist --</option>';
+  if(!locSel.value)return;
+  const {data}=await supabase.from('artists').select('id,artist_name').eq('location_id',locSel.value);
+  data?.forEach(a=>{
+    const o=document.createElement('option');o.value=a.id;o.textContent=a.artist_name;artistPick.appendChild(o);
+  });
+  if(prev && artistPick.querySelector(`option[value="${prev}"]`))artistPick.value=prev;
+  loadDays();
+}
+async function loadDays(){
+  listDays.innerHTML='';listSlotsArtist.innerHTML='';listSlotsArtist.classList.add('hidden');
+  if(!artistPick.value||!rangeStart.value||!rangeEnd.value)return;
+  const {data:artist}=await supabase.from('artists').select('*').eq('id',artistPick.value).single();
+  const {data:apps}=await supabase.from('artist_appointments').select('*')
+                                  .eq('artist_id',artist.id)
+                                  .gte('date',rangeStart.value).lte('date',rangeEnd.value);
+  const {data:vac}=await supabase.from('artist_vacations').select('*')
+                                 .eq('artist_id',artist.id)
+                                 .lte('vacation_start',rangeEnd.value)
+                                 .gte('vacation_end',rangeStart.value);
+  const need=needMin();const days=[];
+  for(let d=new Date(rangeStart.value);d<=new Date(rangeEnd.value);d.setUTCDate(d.getUTCDate()+1)){
+    const iso=d.toISOString().slice(0,10),
+          inVac=vac?.some(v=>v.vacation_start<=iso&&v.vacation_end>=iso);
+    if(inVac)continue;
+    const idx=d.getUTCDay(),
+          st=artist[`${cols[idx]}_start`],
+          en=artist[`${cols[idx]}_end`];
+    if(!st||!en)continue;
+    if(need>=9999){
+      if(!apps.some(a=>a.date===iso))days.push({d:iso,l:`All Day – ${iso}`});
+      continue;
+    }
+    const free=buildFree(toMin(st),toMin(en),apps.filter(a=>a.date===iso));
+    if(free.some(f=>f.e-f.s>=need))days.push({d:iso,l:iso});
+  }
+  if(!days.length){
+    listDays.innerHTML='<p>No available days in that range.</p>';
+    return;
+  }
+  days.forEach(o=>{
+    const div=document.createElement('div');
+    div.className='list-item';div.textContent=o.l;
+    div.onclick=()=>showSlotsArtistDay(o.d);
+    listDays.appendChild(div);
+  });
+}
+async function showSlotsArtistDay(day){
+  listSlotsArtist.innerHTML='';listSlotsArtist.classList.remove('hidden');
+  const {data:artist}=await supabase.from('artists').select('*').eq('id',artistPick.value).single();
+  const {data:vac}=await supabase.from('artist_vacations').select('id')
+                                 .eq('artist_id',artist.id)
+                                 .lte('vacation_start',day).gte('vacation_end',day);
+  if(vac?.length){
+    listSlotsArtist.innerHTML='<p>Artist on vacation that day.</p>';
+    return;
+  }
+  const {data:apps}=await supabase.from('artist_appointments').select('*')
+                                  .eq('artist_id',artistPick.value).eq('date',day);
+  const idx=new Date(`${day}T00:00:00Z`).getUTCDay();
+  const st=artist[`${cols[idx]}_start`],en=artist[`${cols[idx]}_end`];
+  if(!st||!en){
+    listSlotsArtist.innerHTML='<p>Artist off that day.</p>';
+    return;
+  }
+  const need=needMin();
+  if(need>=9999){
+    if(apps.length){
+      listSlotsArtist.innerHTML='<p>No full-day slot available.</p>';
+      return;
+    }
+    slotBtn('All Day',st,en,artist.id,day,listSlotsArtist);
+    return;
+  }
+  const free=buildFree(toMin(st),toMin(en),apps);let made=false;
+  free.forEach(f=>{
+    for(let t=f.s;t<=f.e-need;t+=5){
+      slotBtn(`${minsTo12(t)} – ${minsTo12(t+need)}`,minsTo12(t),minsTo12(t+need),artist.id,day,listSlotsArtist);
+      made=true;
+    }
+  });
+  if(!made)listSlotsArtist.innerHTML='<p>No timeslots fit the requested duration.</p>';
+}
+
+/* ---------- slot button helper ---------- */
+function slotBtn(txt,start,end,artistId,date,container){
+  const div=document.createElement('div');
+  div.className='list-item';div.textContent=txt;
+  div.onclick=()=>{
+    clearSel();
+    div.classList.add('selected');
+    hidA.value=artistId;hidD.value=date;hidS.value=start;hidE.value=end;
+  };
+  container.appendChild(div);
+}
+
+/* ---------- final re-check ---------- */
+async function slotStillAvailable(){
+  const artistId=hidA.value,date=hidD.value;
+  if(!artistId||!date)return false;
+  const startMin=anyToMin(hidS.value), endMin=anyToMin(hidE.value);
+  const {data:vac}=await supabase.from('artist_vacations').select('id')
+                                 .eq('artist_id',artistId)
+                                 .lte('vacation_start',date).gte('vacation_end',date);
+  if(vac?.length)return false;
+  const {data:apps}=await supabase.from('artist_appointments').select('*')
+                                  .eq('artist_id',artistId).eq('date',date);
+  const BUFFER=15;
+  return !apps.some(ap=>{
+    const s=toMin(ap.start_time)-BUFFER, e=toMin(ap.end_time)+BUFFER;
+    return endMin> s && startMin< e;
+  });
+}
+
+/* ---------- Submit ---------- */
+document.getElementById('tattoo-form').addEventListener('submit',async e=>{
+  e.preventDefault();
+  if(!hidA.value&&hidD.value!==todayISO()){alert('Please pick an appointment slot.');return;}
+  const submitBtn=e.submitter||e.target.querySelector('button[type="submit"]');submitBtn.disabled=true;
+
+  if(hidD.value!==todayISO() && !(await slotStillAvailable())){
+    alert('Sorry, that slot has just been taken. Please pick another.');
+    submitBtn.disabled=false;clearSel();updateUI();return;
+  }
+
+  const fd=new FormData(e.target);
+  const r=await fetch('https://hook.us2.make.com/41mjz37swhb5fdu238aqtr26x9by4b5e',{method:'POST',body:fd});
+  if(r.ok){
+    document.open();
+    document.write('<h2 style="text-align:center;margin-top:40px;">Thanks — your request was sent! We’ll text you soon.</h2>');
+    document.close();
+  }else{
+    alert('Submission error – please try again.');submitBtn.disabled=false;
+  }
+});
+</script>
+</body>
+</html>
