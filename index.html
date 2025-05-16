@@ -149,18 +149,35 @@ const hidD=document.getElementById('finalDate');
 const hidS=document.getElementById('finalStartTime');
 const hidE=document.getElementById('finalEndTime');
 
+/* ---------- Location cache ---------- */
+const locationCache={}; // id -> {timezone,address,business_hours,phone,location_name}
+
 /* ---------- Load locations ---------- */
 document.addEventListener('DOMContentLoaded',async()=>{
-  const {data}=await supabase.from('locations').select('id,location_name');
+  const {data}=await supabase.from('locations')
+      .select('id,location_name,timezone,address,business_hours,phone');
   data?.forEach(l=>{
+    locationCache[l.id]=l;
     const o=document.createElement('option');o.value=l.id;o.textContent=l.location_name;
     locSel.appendChild(o);
   });
 });
 
-/* ---------- Helpers ---------- */
-const todayISO = () => new Date().toISOString().split('T')[0];  /* today's yyyy-mm-dd */
+/* ---------- Time-zone helpers ---------- */
+function getSelectedOffset(){
+  const loc=locationCache[locSel.value];
+  if(!loc||loc.timezone===undefined||loc.timezone===null||loc.timezone==='')return 0;
+  return parseInt(loc.timezone,10)||0;         // hours offset from UTC
+}
+function todayForLoc(){
+  const offset=getSelectedOffset();            // hours
+  const now=new Date();
+  const utcMillis=now.getTime()+now.getTimezoneOffset()*60000;
+  const locMillis=utcMillis+offset*3600000;
+  return new Date(locMillis).toISOString().split('T')[0];
+}
 
+/* ---------- Other helpers ---------- */
 const toMin=t=>{if(!t)return 0;const [h,m]=t.split(':').map(Number);return h*60+m;};
 function anyToMin(t){
   if(!t)return 0;
@@ -265,7 +282,7 @@ function updateUI(){
   }
 }
 
-/* ---------- Helper for walk-in message ---------- */
+/* ---------- Walk-in helper ---------- */
 async function showWalkInMessage(){
   listArtistsDate.innerHTML='';listSlotsDate.innerHTML='';
   listSlotsDate.classList.add('hidden');
@@ -273,28 +290,24 @@ async function showWalkInMessage(){
     listArtistsDate.innerHTML='<p>Please select a location first.</p>';
     return;
   }
-  const {data,error}=await supabase.from('locations')
-      .select('address,business_hours,phone').eq('id',locSel.value).single();
-  if(error||!data){
-    listArtistsDate.innerHTML='<p>We take walk-ins today on a first-come, first-served basis. Feel free to stop by the shop!</p>';
-    return;
-  }
+  const loc=locationCache[locSel.value]||
+    (await supabase.from('locations')
+      .select('address,business_hours,phone').eq('id',locSel.value).single()).data;
   listArtistsDate.innerHTML=
     `<p>For tattoos within <strong>today</strong> we take walk-ins on a first-come, first-served basis. 
-      You’re more than welcome to stop by the shop or call us with any questions.</p>
-     <p><strong>Address:</strong> ${data.address||'N/A'}</p>
-     <p><strong>Business Hours:</strong> ${data.business_hours||'N/A'}</p>
-     <p><strong>Phone:</strong> ${data.phone||'N/A'}</p>`;
+      Feel free to stop by the shop or call us with any questions.</p>
+     <p><strong>Address:</strong> ${loc.address||'N/A'}</p>
+     <p><strong>Business Hours:</strong> ${loc.business_hours||'N/A'}</p>
+     <p><strong>Phone:</strong> ${loc.phone||'N/A'}</p>`;
 }
 
 /* ---------- DATE-priority flow ---------- */
 async function loadArtistsForDate(){
   if(!locSel.value||!dateInput.value)return;
 
-  /* Walk-in shortcut for today */
-  if(dateInput.value===todayISO()){
-    await showWalkInMessage();
-    return;
+  /* Walk-in shortcut for “today” in location TZ */
+  if(dateInput.value===todayForLoc()){
+    await showWalkInMessage();return;
   }
 
   const {data:arts}=await supabase.from('artists').select('*').eq('location_id',locSel.value);
@@ -321,8 +334,7 @@ async function loadArtistsForDate(){
   }
   avail.forEach(a=>{
     const div=document.createElement('div');
-    div.className='list-item';
-    div.textContent=a.artist_name;
+    div.className='list-item';div.textContent=a.artist_name;
     div.onclick=()=>{clearSel();div.classList.add('selected');showSlotsDate(a);};
     listArtistsDate.appendChild(div);
   });
@@ -335,16 +347,11 @@ async function showSlotsDate(artist){
   const idx=new Date(`${dateInput.value}T00:00:00Z`).getUTCDay();
   const st=artist[`${cols[idx]}_start`],en=artist[`${cols[idx]}_end`];
   if(!st||!en){
-    listSlotsDate.innerHTML='<p>Artist is off that day.</p>';
-    return;
+    listSlotsDate.innerHTML='<p>Artist is off that day.</p>';return;
   }
   if(need>=9999){
-    if(apps.length){
-      listSlotsDate.innerHTML='<p>No full-day slot available.</p>';
-      return;
-    }
-    slotBtn(`All Day – ${artist.artist_name}`,st,en,artist.id,dateInput.value,listSlotsDate);
-    return;
+    if(apps.length){listSlotsDate.innerHTML='<p>No full-day slot available.</p>';return;}
+    slotBtn(`All Day – ${artist.artist_name}`,st,en,artist.id,dateInput.value,listSlotsDate);return;
   }
   const free=buildFree(toMin(st),toMin(en),apps);let made=false;
   free.forEach(f=>{
@@ -395,15 +402,11 @@ async function loadDays(){
     const free=buildFree(toMin(st),toMin(en),apps.filter(a=>a.date===iso));
     if(free.some(f=>f.e-f.s>=need))days.push({d:iso,l:iso});
   }
-  if(!days.length){
-    listDays.innerHTML='<p>No available days in that range.</p>';
-    return;
-  }
+  if(!days.length){listDays.innerHTML='<p>No available days in that range.</p>';return;}
   days.forEach(o=>{
     const div=document.createElement('div');
     div.className='list-item';div.textContent=o.l;
-    div.onclick=()=>showSlotsArtistDay(o.d);
-    listDays.appendChild(div);
+    div.onclick=()=>showSlotsArtistDay(o.d);listDays.appendChild(div);
   });
 }
 async function showSlotsArtistDay(day){
@@ -412,26 +415,16 @@ async function showSlotsArtistDay(day){
   const {data:vac}=await supabase.from('artist_vacations').select('id')
                                  .eq('artist_id',artist.id)
                                  .lte('vacation_start',day).gte('vacation_end',day);
-  if(vac?.length){
-    listSlotsArtist.innerHTML='<p>Artist on vacation that day.</p>';
-    return;
-  }
+  if(vac?.length){listSlotsArtist.innerHTML='<p>Artist on vacation that day.</p>';return;}
   const {data:apps}=await supabase.from('artist_appointments').select('*')
                                   .eq('artist_id',artistPick.value).eq('date',day);
   const idx=new Date(`${day}T00:00:00Z`).getUTCDay();
   const st=artist[`${cols[idx]}_start`],en=artist[`${cols[idx]}_end`];
-  if(!st||!en){
-    listSlotsArtist.innerHTML='<p>Artist off that day.</p>';
-    return;
-  }
+  if(!st||!en){listSlotsArtist.innerHTML='<p>Artist off that day.</p>';return;}
   const need=needMin();
   if(need>=9999){
-    if(apps.length){
-      listSlotsArtist.innerHTML='<p>No full-day slot available.</p>';
-      return;
-    }
-    slotBtn('All Day',st,en,artist.id,day,listSlotsArtist);
-    return;
+    if(apps.length){listSlotsArtist.innerHTML='<p>No full-day slot available.</p>';return;}
+    slotBtn('All Day',st,en,artist.id,day,listSlotsArtist);return;
   }
   const free=buildFree(toMin(st),toMin(en),apps);let made=false;
   free.forEach(f=>{
@@ -476,10 +469,11 @@ async function slotStillAvailable(){
 /* ---------- Submit ---------- */
 document.getElementById('tattoo-form').addEventListener('submit',async e=>{
   e.preventDefault();
-  if(!hidA.value&&hidD.value!==todayISO()){alert('Please pick an appointment slot.');return;}
+  const todayLoc=todayForLoc();
+  if(!hidA.value && hidD.value!==todayLoc){alert('Please pick an appointment slot.');return;}
   const submitBtn=e.submitter||e.target.querySelector('button[type="submit"]');submitBtn.disabled=true;
 
-  if(hidD.value!==todayISO() && !(await slotStillAvailable())){
+  if(hidD.value!==todayLoc && !(await slotStillAvailable())){
     alert('Sorry, that slot has just been taken. Please pick another.');
     submitBtn.disabled=false;clearSel();updateUI();return;
   }
