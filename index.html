@@ -152,11 +152,23 @@ const hidE=document.getElementById('finalEndTime');
 /* ---------- Location cache ---------- */
 const locationCache={}; // id -> {timezone,address,business_hours,phone,location_name}
 
+/* ---------- Min-date management ---------- */
+function updateMinDates(){
+  // today in browser tz as fallback
+  let today= new Date().toISOString().slice(0,10);
+  // if location chosen, compute “today” for that tz
+  if(locSel.value) today=todayForLoc();
+  dateInput.min=today;
+  rangeStart.min=today;
+  rangeEnd.min=today;
+}
+updateMinDates();
+
 /* ---------- Load locations ---------- */
 document.addEventListener('DOMContentLoaded',async()=>{
   const {data}=await supabase.from('locations')
       .select('id,location_name,timezone,address,business_hours,phone')
-      .eq('active',true);                  /* ← NEW FILTER */
+      .eq('active',true);
   data?.forEach(l=>{
     locationCache[l.id]=l;
     const o=document.createElement('option');o.value=l.id;o.textContent=l.location_name;
@@ -165,14 +177,14 @@ document.addEventListener('DOMContentLoaded',async()=>{
 });
 
 /* ---------- Time-zone helpers ---------- */
-function getSelectedOffset(){             
+function getSelectedOffset(){
   const loc = locationCache[locSel.value];
   if(!loc || loc.timezone==null || loc.timezone==='') return 0;
   return parseInt(loc.timezone,10) || 0;
 }
 function todayForLoc(){
-  const offset = getSelectedOffset();      
-  const locMillis = Date.now() + offset*3_600_000;   
+  const offset = getSelectedOffset();
+  const locMillis = Date.now() + offset*3_600_000;
   return new Date(locMillis).toISOString().slice(0,10);
 }
 
@@ -252,6 +264,7 @@ const cols=['sunday','monday','tuesday','wednesday','thursday','friday','saturda
 /* ---------- Watchers ---------- */
 [locSel,prioSel,dateInput,rangeStart,rangeEnd,hIn,wIn,styleSel]
   .forEach(el=>el.addEventListener('change',()=>{clearSel();updateUI();}));
+locSel.addEventListener('change',updateMinDates);
 artistPick.addEventListener('change',()=>{
   clearSel();listDays.innerHTML='';listSlotsArtist.innerHTML='';
   listSlotsArtist.classList.add('hidden');loadDays();
@@ -269,6 +282,7 @@ function updateUI(){
   listSlotsDate.classList.add('hidden');
   listDays.innerHTML='';listSlotsArtist.innerHTML='';
   listSlotsArtist.classList.add('hidden');
+  updateMinDates();
 
   if(prioSel.value==='datePriority'){
     dateSect.classList.remove('hidden');artistSect.classList.add('hidden');
@@ -307,6 +321,10 @@ async function showWalkInMessage(){
 async function loadArtistsForDate(){
   if(!locSel.value||!dateInput.value)return;
 
+  if(dateInput.value<todayForLoc()){
+    listArtistsDate.innerHTML='<p>Please choose a future date.</p>';
+    return;
+  }
   if(dateInput.value===todayForLoc()){
     await showWalkInMessage();return;
   }
@@ -314,7 +332,7 @@ async function loadArtistsForDate(){
   const {data:arts}=await supabase.from('artists')
         .select('*')
         .eq('location_id',locSel.value)
-        .eq('active',true);                /* ← NEW FILTER */
+        .eq('active',true);
   const artIds=arts.map(a=>a.id);
   const {data:vac}=await supabase.from('artist_vacations')
         .select('artist_id')
@@ -375,7 +393,7 @@ async function loadArtistDropdown(){
   const {data}=await supabase.from('artists')
         .select('id,artist_name')
         .eq('location_id',locSel.value)
-        .eq('active',true);                /* ← NEW FILTER */
+        .eq('active',true);
   data?.forEach(a=>{
     const o=document.createElement('option');o.value=a.id;o.textContent=a.artist_name;artistPick.appendChild(o);
   });
@@ -385,6 +403,9 @@ async function loadArtistDropdown(){
 async function loadDays(){
   listDays.innerHTML='';listSlotsArtist.innerHTML='';listSlotsArtist.classList.add('hidden');
   if(!artistPick.value||!rangeStart.value||!rangeEnd.value)return;
+  if(rangeStart.value<todayForLoc()){
+    listDays.innerHTML='<p>Start date cannot be in the past.</p>';return;
+  }
   const {data:artist}=await supabase.from('artists').select('*').eq('id',artistPick.value).single();
   const {data:apps}=await supabase.from('artist_appointments').select('*')
                                   .eq('artist_id',artist.id)
