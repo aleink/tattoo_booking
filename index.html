@@ -155,7 +155,8 @@ const locationCache={}; // id -> {timezone,address,business_hours,phone,location
 /* ---------- Load locations ---------- */
 document.addEventListener('DOMContentLoaded',async()=>{
   const {data}=await supabase.from('locations')
-      .select('id,location_name,timezone,address,business_hours,phone');
+      .select('id,location_name,timezone,address,business_hours,phone')
+      .eq('active',true);                  /* ← NEW FILTER */
   data?.forEach(l=>{
     locationCache[l.id]=l;
     const o=document.createElement('option');o.value=l.id;o.textContent=l.location_name;
@@ -164,15 +165,14 @@ document.addEventListener('DOMContentLoaded',async()=>{
 });
 
 /* ---------- Time-zone helpers ---------- */
-function getSelectedOffset(){              /* hours offset from UTC, e.g.  -8, 0, +2 */
+function getSelectedOffset(){             
   const loc = locationCache[locSel.value];
   if(!loc || loc.timezone==null || loc.timezone==='') return 0;
   return parseInt(loc.timezone,10) || 0;
 }
-/*  true “today” in the location’s own time-zone, using pure UTC as a base  */
 function todayForLoc(){
-  const offset = getSelectedOffset();      /* hours */
-  const locMillis = Date.now() + offset*3_600_000;   /* 1 h = 3 600 000 ms */
+  const offset = getSelectedOffset();      
+  const locMillis = Date.now() + offset*3_600_000;   
   return new Date(locMillis).toISOString().slice(0,10);
 }
 
@@ -307,12 +307,14 @@ async function showWalkInMessage(){
 async function loadArtistsForDate(){
   if(!locSel.value||!dateInput.value)return;
 
-  /* Walk-in shortcut for “today” in location TZ */
   if(dateInput.value===todayForLoc()){
     await showWalkInMessage();return;
   }
 
-  const {data:arts}=await supabase.from('artists').select('*').eq('location_id',locSel.value);
+  const {data:arts}=await supabase.from('artists')
+        .select('*')
+        .eq('location_id',locSel.value)
+        .eq('active',true);                /* ← NEW FILTER */
   const artIds=arts.map(a=>a.id);
   const {data:vac}=await supabase.from('artist_vacations')
         .select('artist_id')
@@ -365,12 +367,15 @@ async function showSlotsDate(artist){
   if(!made)listSlotsDate.innerHTML='<p>No timeslots fit the requested duration.</p>';
 }
 
-/* ---------- ARTIST-priority flow (unchanged) ---------- */
+/* ---------- ARTIST-priority flow ---------- */
 async function loadArtistDropdown(){
   const prev=artistPick.value;
   artistPick.innerHTML='<option value="">-- Pick Artist --</option>';
   if(!locSel.value)return;
-  const {data}=await supabase.from('artists').select('id,artist_name').eq('location_id',locSel.value);
+  const {data}=await supabase.from('artists')
+        .select('id,artist_name')
+        .eq('location_id',locSel.value)
+        .eq('active',true);                /* ← NEW FILTER */
   data?.forEach(a=>{
     const o=document.createElement('option');o.value=a.id;o.textContent=a.artist_name;artistPick.appendChild(o);
   });
