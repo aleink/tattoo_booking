@@ -150,13 +150,13 @@ const hidS=document.getElementById('finalStartTime');
 const hidE=document.getElementById('finalEndTime');
 
 /* ---------- Location cache ---------- */
-const locationCache={};
+const locationCache={}; // id -> {timezone,address,business_hours,phone,location_name}
 
 /* ---------- Load locations ---------- */
 document.addEventListener('DOMContentLoaded',async()=>{
   const {data}=await supabase.from('locations')
       .select('id,location_name,timezone,address,business_hours,phone')
-      .eq('active',true);
+      .eq('active',true);                  /* ← NEW FILTER */
   data?.forEach(l=>{
     locationCache[l.id]=l;
     const o=document.createElement('option');o.value=l.id;o.textContent=l.location_name;
@@ -164,10 +164,16 @@ document.addEventListener('DOMContentLoaded',async()=>{
   });
 });
 
-/* ---------- Today (browser) ---------- */
+/* ---------- Time-zone helpers ---------- */
+function getSelectedOffset(){             
+  const loc = locationCache[locSel.value];
+  if(!loc || loc.timezone==null || loc.timezone==='') return 0;
+  return parseInt(loc.timezone,10) || 0;
+}
 function todayForLoc(){
-  /* same-day rule now based on the client’s local calendar date */
-  return new Date().toISOString().slice(0,10);
+  const offset = getSelectedOffset();      
+  const locMillis = Date.now() + offset*3_600_000;   
+  return new Date(locMillis).toISOString().slice(0,10);
 }
 
 /* ---------- Other helpers ---------- */
@@ -308,7 +314,7 @@ async function loadArtistsForDate(){
   const {data:arts}=await supabase.from('artists')
         .select('*')
         .eq('location_id',locSel.value)
-        .eq('active',true);
+        .eq('active',true);                /* ← NEW FILTER */
   const artIds=arts.map(a=>a.id);
   const {data:vac}=await supabase.from('artist_vacations')
         .select('artist_id')
@@ -369,7 +375,7 @@ async function loadArtistDropdown(){
   const {data}=await supabase.from('artists')
         .select('id,artist_name')
         .eq('location_id',locSel.value)
-        .eq('active',true);
+        .eq('active',true);                /* ← NEW FILTER */
   data?.forEach(a=>{
     const o=document.createElement('option');o.value=a.id;o.textContent=a.artist_name;artistPick.appendChild(o);
   });
