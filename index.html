@@ -159,9 +159,10 @@ const locationCache={};
 function updateMinDates(){
   let today=new Date().toISOString().slice(0,10);
   if(locSel.value) today=todayForLoc();
-  dateInput.min=today;
-  rangeStart.min=today;
-  rangeEnd.min=today;
+  const tomorrow=new Date(Date.parse(today)+86400000).toISOString().slice(0,10);
+  dateInput.min=today;       // date priority can be today
+  rangeStart.min=tomorrow;   // artist priority must start after today
+  rangeEnd.min=tomorrow;
 }
 updateMinDates();
 
@@ -306,7 +307,7 @@ async function showWalkInMessage(){
     (await supabase.from('locations')
       .select('address,business_hours,phone').eq('id',locSel.value).single()).data;
   listArtistsDate.innerHTML=
-    `<p>We don’t take online bookings for <strong>today</strong>. Feel free to drop by as a walk-in—service is first-come, first-served—or call us with any questions. We’re here to help!</p>
+    `<p>We don’t take online bookings for today. Feel free to drop by as a walk-in, Walk-in service is first-come, first-served, or call us with any questions. We’re here to help!</p>
      <p><strong>Address:</strong> ${loc.address||'N/A'}</p>
      <p><strong>Business Hours:</strong> ${loc.business_hours||'N/A'}</p>
      <p><strong>Phone:</strong> ${loc.phone||'N/A'}</p>`;
@@ -392,7 +393,7 @@ async function loadArtistDropdown(){
 async function loadDays(){
   listDays.innerHTML='';listSlotsArtist.innerHTML='';listSlotsArtist.classList.add('hidden');
   if(!artistPick.value||!rangeStart.value||!rangeEnd.value)return;
-  if(rangeStart.value<todayForLoc()){listDays.innerHTML='<p>Start date cannot be in the past.</p>';return;}
+  if(rangeStart.value<=todayForLoc()){listDays.innerHTML='<p>Start date must be after today.</p>';return;}
   const {data:artist}=await supabase.from('artists').select('*').eq('id',artistPick.value).single();
   const {data:apps}=await supabase.from('artist_appointments').select('*')
                                   .eq('artist_id',artist.id)
